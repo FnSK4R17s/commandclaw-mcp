@@ -11,6 +11,11 @@
 
 ---
 
+> [!WARNING]
+> **🚧 Beta Software** — This project is under active development. Workflows and commands may be incomplete or broken. Your feedback helps make this better!
+>
+> 💬 **Have feedback or found a bug?** Reach out at [**@_Shikh4r_** on X](https://x.com/_Shikh4r_)
+
 ## Why a Separate Gateway?
 
 In OpenClaw, agents interact with external tools via ad-hoc API calls with direct access to credentials. If an agent leaks a key — through a prompt injection, a bad tool call, or a context dump — that key is live until someone manually rotates it.

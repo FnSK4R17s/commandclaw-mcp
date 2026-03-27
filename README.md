@@ -1,5 +1,5 @@
 <p align="center">
-  <span style="font-size: 80px;">⚓🦞🔐</span>
+  <img src="logo.png" alt="CommandClaw MCP Gateway" width="240">
 </p>
 
 <h1 align="center">CommandClaw MCP Gateway</h1>

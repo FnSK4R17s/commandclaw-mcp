@@ -48,7 +48,7 @@ NEXT=$((NEXT + 1))
 BUGFIX_FILE="$FOLDER/bugfix$(printf '%02d' $NEXT).md"
 
 # Copy from template and fill placeholders
-cp .templates/bugfix.md "$BUGFIX_FILE"
+cp .agents/skills/bugfix/templates/bugfix.md "$BUGFIX_FILE"
 sed -i "s/{{BUGFIX_NUM}}/$NEXT/g; s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g; s/{{DATE}}/$(date +%Y-%m-%d)/g" "$BUGFIX_FILE"
 sed -i "s/{{TITLE}}/$(echo "$ISSUE" | jq -r '.title')/g" "$BUGFIX_FILE"
 

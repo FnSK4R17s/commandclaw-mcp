@@ -31,8 +31,8 @@ When brainstorming produces lasting insights, promote them to guiding docs rathe
 
 ```
 GitHub Issue #12 <-> brainstorming/issue-012-session-pooling/
-                         |- notes.md      (brainstorm doc from .templates/brainstorm.notes.md)
-                         |- tasks.md      (optional, from .templates/brainstorm.tasks.md)
+                         |- notes.md      (from brainstorming skill templates/notes.md)
+                         |- tasks.md      (optional, from brainstorm-to-tasks skill templates/tasks.md)
                          +- research.md   (optional extras)
 ```
 
@@ -50,7 +50,7 @@ TITLE=$(echo "$ISSUE" | jq -r '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a
 # 2. Create from template
 FOLDER="brainstorming/issue-$(printf '%03d' $ISSUE_NUM)-${TITLE:0:30}"
 mkdir -p "$FOLDER"
-cp .templates/brainstorm.notes.md "$FOLDER/notes.md"
+cp .agents/skills/brainstorming/templates/notes.md "$FOLDER/notes.md"
 
 # 3. Fill in placeholders
 sed -i "s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g" "$FOLDER/notes.md"
@@ -67,7 +67,7 @@ When you need to break down implementation:
 ```bash
 ISSUE_NUM=12
 FOLDER=$(ls -d brainstorming/issue-$(printf '%03d' $ISSUE_NUM)-* 2>/dev/null | head -1)
-cp .templates/brainstorm.tasks.md "$FOLDER/tasks.md"
+cp .agents/skills/brainstorm-to-tasks/templates/tasks.md "$FOLDER/tasks.md"
 sed -i "s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g; s/{{DATE}}/$(date +%Y-%m-%d)/g" "$FOLDER/tasks.md"
 echo "Created: $FOLDER/tasks.md"
 ```
@@ -123,7 +123,7 @@ brainstorming/
 
 | Template | Purpose |
 |----------|--------|
-| `.templates/brainstorm.notes.md` | Main brainstorm document - ideas, decisions, approach |
-| `.templates/brainstorm.tasks.md` | Task breakdown - phases, estimates, acceptance criteria |
+| `.agents/skills/brainstorming/templates/notes.md` | Main brainstorm document - ideas, decisions, approach |
+| `.agents/skills/brainstorm-to-tasks/templates/tasks.md` | Task breakdown - phases, estimates, acceptance criteria |
 
 Customize them for your project's needs.

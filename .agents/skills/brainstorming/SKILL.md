@@ -2,10 +2,10 @@
 name: brainstorming
 description: Create and manage brainstorming documents for GitHub issues. Use when exploring ideas, planning features, or documenting decisions before creating formal specs.
 license: MIT
-compatibility: Requires curl and basic shell
+compatibility: Requires gh CLI (GitHub CLI)
 metadata:
   author: FnSK4R17s
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Brainstorming
@@ -36,6 +36,36 @@ GitHub Issue #12 <-> brainstorming/issue-012-session-pooling/
                          +- research.md   (optional extras)
 ```
 
+## Pre-Brainstorm Checklist
+
+Before creating a brainstorm document, ask the user:
+
+### 1. Does a GitHub issue exist?
+
+If not, offer to create one:
+
+```bash
+gh issue create --title "Feature: <title>" --body "Brainstorming needed for <description>" --label "brainstorm"
+```
+
+This gives the brainstorm a trackable home. Capture the issue number for the brainstorm folder.
+
+### 2. Should we create a feature branch?
+
+Ask: *"Would you like a dedicated branch for this brainstorm? This keeps exploration isolated from main."*
+
+If yes:
+
+```bash
+ISSUE_NUM=12
+SLUG="session-pooling"
+git checkout -b brainstorm/issue-${ISSUE_NUM}-${SLUG}
+```
+
+Branch naming convention: `brainstorm/issue-{NNN}-{slug}`
+
+When the brainstorm matures into implementation, the branch can be rebased or a new `feature/` branch created from it.
+
 ## Quick Start
 
 ### Create New Brainstorm from Issue
@@ -43,9 +73,7 @@ GitHub Issue #12 <-> brainstorming/issue-012-session-pooling/
 ```bash
 # 1. Get issue details
 ISSUE_NUM=12
-REPO=$(git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
-ISSUE=$(curl -s "https://api.github.com/repos/$REPO/issues/$ISSUE_NUM")
-TITLE=$(echo "$ISSUE" | jq -r '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g')
+TITLE=$(gh issue view $ISSUE_NUM --json title --jq '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g')
 
 # 2. Create from template
 FOLDER="brainstorming/issue-$(printf '%03d' $ISSUE_NUM)-${TITLE:0:30}"
@@ -53,11 +81,30 @@ mkdir -p "$FOLDER"
 cp .agents/skills/brainstorming/templates/notes.md "$FOLDER/notes.md"
 
 # 3. Fill in placeholders
+FULL_TITLE=$(gh issue view $ISSUE_NUM --json title --jq '.title')
 sed -i "s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g" "$FOLDER/notes.md"
-sed -i "s/{{TITLE}}/$(echo "$ISSUE" | jq -r '.title')/g" "$FOLDER/notes.md"
+sed -i "s/{{TITLE}}/$FULL_TITLE/g" "$FOLDER/notes.md"
 sed -i "s/{{DATE}}/$(date +%Y-%m-%d)/g" "$FOLDER/notes.md"
 
 echo "Created: $FOLDER/notes.md"
+```
+
+### Create Brainstorm Without an Existing Issue
+
+If the user wants to brainstorm first and create an issue later:
+
+```bash
+SLUG="credential-encryption"
+FOLDER="brainstorming/${SLUG}"
+mkdir -p "$FOLDER"
+cp .agents/skills/brainstorming/templates/notes.md "$FOLDER/notes.md"
+sed -i "s/{{ISSUE_NUMBER}}/TBD/g; s/{{TITLE}}/${SLUG}/g; s/{{DATE}}/$(date +%Y-%m-%d)/g" "$FOLDER/notes.md"
+```
+
+When ready, create the issue and link it:
+
+```bash
+gh issue create --title "Feature: Credential Encryption" --body "See brainstorming/${SLUG}/notes.md"
 ```
 
 ### Add Tasks (Optional)
@@ -70,6 +117,43 @@ FOLDER=$(ls -d brainstorming/issue-$(printf '%03d' $ISSUE_NUM)-* 2>/dev/null | h
 cp .agents/skills/brainstorm-to-tasks/templates/tasks.md "$FOLDER/tasks.md"
 sed -i "s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g; s/{{DATE}}/$(date +%Y-%m-%d)/g" "$FOLDER/tasks.md"
 echo "Created: $FOLDER/tasks.md"
+```
+
+## Commands
+
+### List All Brainstorms
+
+```bash
+ls -la brainstorming/
+```
+
+### Find Brainstorm for Issue
+
+```bash
+ls brainstorming/ | grep "issue-012"
+```
+
+### Check Brainstorm Status
+
+```bash
+grep -h "^\*\*Status\*\*:" brainstorming/*/notes.md 2>/dev/null
+```
+
+### List Issues with Brainstorms
+
+```bash
+for dir in brainstorming/issue-*/; do
+  num=$(echo "$dir" | grep -oE '[0-9]+' | head -1)
+  status=$(grep "^\*\*Status\*\*:" "$dir/notes.md" 2>/dev/null | head -1)
+  echo "#$num: $status"
+done
+```
+
+### Check Issue Status from GitHub
+
+```bash
+ISSUE_NUM=12
+gh issue view $ISSUE_NUM --json state,title --jq '"\(.state): \(.title)"'
 ```
 
 ## Folder Naming Convention
@@ -97,7 +181,9 @@ brainstorming/
 ## Workflow
 
 ```
-1. Issue Created (#12)
+0. (Optional) Create GitHub issue if none exists
+        |
+1. (Optional) Create brainstorm branch: brainstorm/issue-NNN-slug
         |
 2. Brainstorm Created (brainstorming/issue-012-*)
         |
@@ -107,9 +193,11 @@ brainstorming/
         |
 5. brainstorm-to-tasks skill generates tasks.md
         |
-6. implement-tasks skill executes the work
+6. (Optional) Create feature branch from brainstorm branch
         |
-7. Brainstorm Status -> "Archived"
+7. implement-tasks skill executes the work
+        |
+8. Brainstorm Status -> "Archived"
 ```
 
 ## Best Practices
@@ -118,6 +206,7 @@ brainstorming/
 2. **Update status** - Draft -> In Progress -> Ready for Implementation -> Archived
 3. **Link to issue** - Always include the issue link in frontmatter
 4. **Archive don't delete** - Mark as archived when implementation begins
+5. **Use `gh` CLI** - All GitHub operations go through `gh`, not raw API calls
 
 ## Templates
 

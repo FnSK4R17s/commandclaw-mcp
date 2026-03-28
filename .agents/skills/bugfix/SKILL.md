@@ -2,7 +2,7 @@
 name: bugfix
 description: Create structured bugfix documents for tracking bug investigations, root cause analysis, and fixes. Use when a bug is reported via GitHub issue, user report, or agent observation.
 license: MIT
-compatibility: Requires curl and basic shell
+compatibility: Requires gh CLI (GitHub CLI)
 metadata:
   author: FnSK4R17s
   version: "1.0"
@@ -35,9 +35,8 @@ brainstorming/issue-007-hmac-timing-leak/
 
 ```bash
 ISSUE_NUM=7
-REPO=$(git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
-ISSUE=$(curl -s "https://api.github.com/repos/$REPO/issues/$ISSUE_NUM")
-TITLE=$(echo "$ISSUE" | jq -r '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g')
+TITLE=$(gh issue view $ISSUE_NUM --json title --jq '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g')
+FULL_TITLE=$(gh issue view $ISSUE_NUM --json title --jq '.title')
 
 FOLDER="brainstorming/issue-$(printf '%03d' $ISSUE_NUM)-${TITLE:0:30}"
 mkdir -p "$FOLDER"
@@ -50,9 +49,15 @@ BUGFIX_FILE="$FOLDER/bugfix$(printf '%02d' $NEXT).md"
 # Copy from template and fill placeholders
 cp .agents/skills/bugfix/templates/bugfix.md "$BUGFIX_FILE"
 sed -i "s/{{BUGFIX_NUM}}/$NEXT/g; s/{{ISSUE_NUMBER}}/$ISSUE_NUM/g; s/{{DATE}}/$(date +%Y-%m-%d)/g" "$BUGFIX_FILE"
-sed -i "s/{{TITLE}}/$(echo "$ISSUE" | jq -r '.title')/g" "$BUGFIX_FILE"
+sed -i "s/{{TITLE}}/$FULL_TITLE/g" "$BUGFIX_FILE"
 
 echo "Created: $BUGFIX_FILE"
+```
+
+If no issue exists yet, offer to create one first:
+
+```bash
+gh issue create --title "Bug: <description>" --body "<symptom details>" --label "bug"
 ```
 
 ### Create Bugfix Without an Issue

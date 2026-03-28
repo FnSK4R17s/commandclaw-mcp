@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "brainstorm-to-tasks": {
+      "source": "FnSK4R17s/chakravarti-cli",
+      "sourceType": "github",
+      "computedHash": "33e20e57832ac10ada94908edb3d13ec766e197da5ae3a0c96df25798b11d32e"
+    },
+    "brainstorming": {
+      "source": "FnSK4R17s/chakravarti-cli",
+      "sourceType": "github",
+      "computedHash": "0b88b6193e4b92d284ed852499a037eb64c7ab268e645f9b2ea094ed23754145"
+    },
+    "implement-tasks": {
+      "source": "FnSK4R17s/chakravarti-cli",
+      "sourceType": "github",
+      "computedHash": "8bc9d5138a62ccc12069615832ecbf9dcba29b12ce9119f1787de1a93cdedc42"
+    }
+  }
+}

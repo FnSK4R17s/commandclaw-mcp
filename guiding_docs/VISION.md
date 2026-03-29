@@ -476,7 +476,11 @@ The industry is moving toward context-aware credential lifecycle management rath
 
 ## Configuration
 
-All configuration lives at `~/.commandclaw/mcp.json` -- outside the vault, out of Git:
+Configuration is split across two files, both at `~/.commandclaw/` -- outside the vault, out of Git. The split separates infrastructure (changes rarely, contains credentials) from agent access policy (changes frequently, no secrets).
+
+### Infrastructure: `~/.commandclaw/mcp.json`
+
+Gateway settings, upstream server definitions (with credentials), and service connections:
 
 ```json
 {
@@ -498,18 +502,6 @@ All configuration lives at `~/.commandclaw/mcp.json` -- outside the vault, out o
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": { "GITHUB_TOKEN": "ghp_..." }
-    }
-  },
-  "access": {
-    "coding-agent": {
-      "roles": ["developer"],
-      "tools": ["github", "notion"],
-      "rate_limit": { "requests_per_minute": 60 }
-    },
-    "research-agent": {
-      "roles": ["reader"],
-      "tools": ["notion"],
-      "rate_limit": { "requests_per_minute": 30 }
     }
   },
   "redis": {
@@ -535,6 +527,32 @@ All configuration lives at `~/.commandclaw/mcp.json` -- outside the vault, out o
 }
 ```
 
+### Agent Access Policy: `~/.commandclaw/agents.json`
+
+Per-agent roles, tool grants, and rate limits. This file changes whenever agents are added, permissions are tuned, or rate limits are adjusted -- without touching infrastructure config or credentials:
+
+```json
+{
+  "coding-agent": {
+    "roles": ["developer"],
+    "tools": ["github", "notion"],
+    "rate_limit": { "requests_per_minute": 60 }
+  },
+  "research-agent": {
+    "roles": ["reader"],
+    "tools": ["notion"],
+    "rate_limit": { "requests_per_minute": 30 }
+  }
+}
+```
+
+**Why separate files:**
+- `mcp.json` contains real API keys and credentials -- access should be tightly controlled
+- `agents.json` contains access policy only -- safe to share with agent operators without exposing secrets
+- Agent access changes frequently (new agents, permission tuning, rate limit adjustments) while infrastructure is stable
+- Avoids accidental credential exposure when editing agent permissions
+- Aligns with the principle that policy (who can do what) is a different concern from configuration (how things connect)
+
 ## Project Structure
 
 ```
@@ -550,7 +568,7 @@ All configuration lives at `~/.commandclaw/mcp.json` -- outside the vault, out o
 ├── src/commandclaw_mcp/
 │   ├── __init__.py
 │   ├── __main__.py                     # Entry point: load config, create app, run uvicorn
-│   ├── config.py                       # Pydantic Settings from ~/.commandclaw/mcp.json
+│   ├── config.py                       # Pydantic Settings from ~/.commandclaw/mcp.json + agents.json
 │   │
 │   ├── gateway/
 │   │   ├── __init__.py

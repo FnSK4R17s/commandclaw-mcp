@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "commandclaw-mcp"
+version = "0.1.0"
+description = "MCP gateway with phantom tokens, dual-layer RBAC, and session pooling"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "fastmcp>=2.0.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "redis[hiredis]>=5.2.0",
+    "cryptography>=44.0.0",
+    "argon2-cffi>=23.1.0",
+    "httpx>=0.28.0",
+    "structlog>=24.4.0",
+    "opentelemetry-api>=1.29.0",
+    "opentelemetry-sdk>=1.29.0",
+    "opentelemetry-exporter-otlp>=1.29.0",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "opentelemetry-instrumentation-httpx>=0.50b0",
+    "opentelemetry-instrumentation-redis>=0.50b0",
+    "prometheus-client>=0.21.0",
+    "cerbos>=0.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "respx>=0.22.0",
+    "fakeredis>=2.26.0",
+]
+
+[project.scripts]
+commandclaw-mcp = "commandclaw_mcp.__main__:main"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM", "TCH"]
+ignore = ["S104"]  # binding to 0.0.0.0 is intentional when configured
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

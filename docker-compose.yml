@@ -1,0 +1,77 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "${COMMANDCLAW_GATEWAY__PORT:-8420}:8420"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Mount the host config, but let env vars override networking for Docker
+      - COMMANDCLAW_CONFIG=/home/commandclaw/.commandclaw/mcp.json
+      - COMMANDCLAW_GATEWAY__HOST=0.0.0.0
+      - COMMANDCLAW_GATEWAY__ALLOW_NON_LOOPBACK=true
+      - COMMANDCLAW_REDIS__URL=redis://redis:6379/0
+      - COMMANDCLAW_CERBOS__HOST=cerbos
+      - COMMANDCLAW_CERBOS__PORT=3592
+      - COMMANDCLAW_CERBOS__ALLOW_PLAINTEXT=true
+      - COMMANDCLAW_GATEWAY__ALLOW_PRIVATE_UPSTREAM=true
+      - COMMANDCLAW_OBSERVABILITY__OTLP_ENDPOINT=http://jaeger:4317
+    volumes:
+      - ${COMMANDCLAW_MCP_CONFIG:-~/.commandclaw/mcp.json}:/home/commandclaw/.commandclaw/mcp.json:ro
+      - ${COMMANDCLAW_AGENTS_CONFIG:-~/.commandclaw/agents.json}:/home/commandclaw/.commandclaw/agents.json:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      cerbos:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cerbos:
+    image: ghcr.io/cerbos/cerbos:latest
+    ports:
+      - "${CERBOS_GRPC_PORT:-3593}:3593"
+      - "${CERBOS_HTTP_PORT:-3592}:3592"
+    volumes:
+      - ./policies:/policies:ro
+    command:
+      - "server"
+      - "--set=storage.driver=disk"
+      - "--set=storage.disk.directory=/policies"
+    healthcheck:
+      test: ["CMD", "/cerbos", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # Example upstream MCP server — world clock with timezone tools
+  world-clock:
+    build: examples/world_clock
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/mcp')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  redis-data:

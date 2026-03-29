@@ -1,0 +1,41 @@
+# Cerbos policy for MCP tool access control
+# See: https://docs.cerbos.dev/cerbos/latest/policies/resource_policies
+#
+# This is the default policy. Customize per deployment.
+# Deny-by-default: if no rule matches, access is denied.
+
+apiVersion: "api.cerbos.dev/v1"
+resourcePolicy:
+  version: "default"
+  resource: "mcp::tools"
+  rules:
+    # Developers can use all tools in their allowed servers
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles: ["admin"]
+
+    # Developer role: common tool access
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles: ["developer"]
+
+    # Reader role: read-only tools only
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles: ["reader"]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.read_only == true
+
+    # Manager role: approve actions with amount limits
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles: ["manager"]
+      condition:
+        match:
+          all:
+            of:
+              - expr: >
+                  !has(request.resource.attr.amount) ||
+                  request.resource.attr.amount < 10000

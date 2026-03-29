@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="CommandClaw MCP Gateway" width="240">
+  <img src="logo.png" alt="CommandClaw MCP Gateway" height="88">
 </p>
 
 <h1 align="center">CommandClaw MCP Gateway</h1>

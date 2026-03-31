@@ -57,6 +57,7 @@ class RateLimitConfig(BaseModel):
 class AccessEntry(BaseModel):
     roles: list[str] = Field(default_factory=list)
     tools: list[str] = Field(default_factory=list)
+    mode: str = Field(default="standard", description="Agent privilege mode: admin or standard")
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
 
 

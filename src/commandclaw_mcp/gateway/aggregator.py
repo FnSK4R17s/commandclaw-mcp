@@ -385,6 +385,37 @@ class BidirectionalMiddleware(Middleware):
         return await call_next(context)
 
 
+class AuthBridgeMiddleware(Middleware):
+    """Bridge auth state from ASGI scope into FastMCP context.
+
+    The auth middleware (ASGI layer) stores agent_id and phantom_session
+    in scope["state"]. This FastMCP middleware reads that via
+    _current_http_request and sets it on the FastMCP context so
+    downstream middlewares (RBAC, CredentialInjection) can access it.
+    """
+
+    async def on_message(
+        self, context: MiddlewareContext, call_next: Any
+    ) -> Any:
+        """Copy agent_id and phantom_session from HTTP scope to FastMCP state."""
+        try:
+            from fastmcp.server.http import _current_http_request
+
+            request = _current_http_request.get(None)
+            if request is not None:
+                scope_state = request.scope.get("state", {})
+                agent_id = scope_state.get("agent_id")
+                session = scope_state.get("phantom_session")
+                if agent_id and context.fastmcp_context:
+                    context.fastmcp_context.set_state("agent_id", agent_id)
+                if session and context.fastmcp_context:
+                    context.fastmcp_context.set_state("phantom_session", session)
+        except Exception:
+            logger.debug("auth_bridge_failed", exc_info=True)
+
+        return await call_next(context)
+
+
 def create_gateway_mcp(
     settings: Settings,
     rbac_handler: RBACHandler | None = None,
@@ -395,6 +426,7 @@ def create_gateway_mcp(
     `weather_get_forecast` when mounted under namespace "weather".
 
     Attaches security middleware in order (FIFO on request, LIFO on response):
+    0. AuthBridgeMiddleware — copies agent_id from ASGI scope to FastMCP state
     1. AuditMiddleware — logs all MCP traffic
     2. SessionTrackingMiddleware — tracks Mcp-Session-Id + Last-Event-ID
     3. BidirectionalMiddleware — supports server→client requests + notifications
@@ -404,6 +436,7 @@ def create_gateway_mcp(
     session_tracker = SessionTrackingMiddleware()
 
     middlewares: list[Middleware] = [
+        AuthBridgeMiddleware(),
         AuditMiddleware(),
         session_tracker,
         BidirectionalMiddleware(),

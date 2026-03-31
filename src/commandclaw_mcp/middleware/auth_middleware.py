@@ -64,20 +64,29 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Extract required headers
+        # Extract auth headers — supports two modes:
+        # 1. Full HMAC: X-Phantom-Token + X-Timestamp + X-Signature + X-Nonce
+        # 2. Bearer token: Authorization: Bearer <phantom_token> (for MCP protocol clients)
         phantom_token = request.headers.get(HEADER_PHANTOM_TOKEN)
         timestamp = request.headers.get(HEADER_TIMESTAMP)
         signature = request.headers.get(HEADER_SIGNATURE)
         nonce = request.headers.get(HEADER_NONCE)
 
-        if not all([phantom_token, timestamp, signature, nonce]):
-            validation_failures_total.labels(reason="unknown_token").inc()
-            response = JSONResponse(
-                {"error": "Missing required auth headers"},
-                status_code=401,
-            )
-            await response(scope, receive, send)
-            return
+        use_hmac = all([phantom_token, timestamp, signature, nonce])
+
+        # Fallback: Bearer token auth (phantom token in Authorization header)
+        if not use_hmac:
+            auth_header = request.headers.get("authorization", "")
+            if auth_header.startswith("Bearer "):
+                phantom_token = auth_header[7:]
+            else:
+                validation_failures_total.labels(reason="unknown_token").inc()
+                response = JSONResponse(
+                    {"error": "Missing required auth headers"},
+                    status_code=401,
+                )
+                await response(scope, receive, send)
+                return
 
         # Look up phantom token (current gen, fall back to previous)
         session = self._token_store.lookup(phantom_token)  # type: ignore[arg-type]
@@ -91,28 +100,27 @@ class AuthMiddleware:
             await response(scope, receive, send)
             return
 
-        # Read body for HMAC verification
-        body = await request.body()
-
-        # Verify HMAC signature
-        try:
-            self._hmac_verifier.verify(
-                method=request.method,
-                path=request.url.path,
-                timestamp=timestamp,  # type: ignore[arg-type]
-                nonce=nonce,  # type: ignore[arg-type]
-                body=body,
-                signature=signature,  # type: ignore[arg-type]
-                hmac_key=session.hmac_key,
-            )
-        except HMACVerificationError as exc:
-            logger.warning("auth_hmac_failed", reason=exc.reason, agent_id=session.agent_id)
-            response = JSONResponse(
-                {"error": f"HMAC verification failed: {exc.reason}"},
-                status_code=401,
-            )
-            await response(scope, receive, send)
-            return
+        # Verify HMAC signature (only when full HMAC headers are present)
+        if use_hmac:
+            body = await request.body()
+            try:
+                self._hmac_verifier.verify(
+                    method=request.method,
+                    path=request.url.path,
+                    timestamp=timestamp,  # type: ignore[arg-type]
+                    nonce=nonce,  # type: ignore[arg-type]
+                    body=body,
+                    signature=signature,  # type: ignore[arg-type]
+                    hmac_key=session.hmac_key,
+                )
+            except HMACVerificationError as exc:
+                logger.warning("auth_hmac_failed", reason=exc.reason, agent_id=session.agent_id)
+                response = JSONResponse(
+                    {"error": f"HMAC verification failed: {exc.reason}"},
+                    status_code=401,
+                )
+                await response(scope, receive, send)
+                return
 
         # Attach session to request state for downstream middleware/handlers
         scope.setdefault("state", {})

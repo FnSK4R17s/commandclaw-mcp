@@ -142,30 +142,44 @@ def create_app(settings: Settings) -> FastAPI:
         gateway_mcp = create_gateway_mcp(settings, rbac_handler=state.rbac_handler)
         app.state.gateway_mcp = gateway_mcp
 
+        # Mount FastMCP as sub-application at /mcp
+        # Chain its lifespan so the StreamableHTTPSessionManager task group starts
+        mcp_asgi = gateway_mcp.http_app(path="/", transport="streamable-http")
+        app.mount("/mcp", mcp_asgi)
+        logger.info("mcp_protocol_mounted", path="/mcp")
+
+        # Start the MCP sub-app's lifespan (required for task group init)
+        mcp_lifespan_cm = mcp_asgi.router.lifespan_context(mcp_asgi)
+        await mcp_lifespan_cm.__aenter__()
+
         # Start periodic pool eviction
         eviction_task = asyncio.create_task(_periodic_eviction(state))
 
         state._start_time = time.time()
         logger.info("gateway_started")
 
-        yield {"gateway_state": state}
-
-        # Shutdown
-        logger.info("gateway_shutting_down")
-        eviction_task.cancel()
         try:
-            await eviction_task
-        except asyncio.CancelledError:
-            pass
+            yield {"gateway_state": state}
+        finally:
+            # Shutdown
+            logger.info("gateway_shutting_down")
+            eviction_task.cancel()
+            try:
+                await eviction_task
+            except asyncio.CancelledError:
+                pass
 
-        await state.rotation_manager.stop()
-        await state.redis_store.close()
-        await state.policy_engine.close()
-        await state._redis_pool.disconnect()
+            # Shutdown MCP sub-app
+            await mcp_lifespan_cm.__aexit__(None, None, None)
 
-        # Shutdown tracing
-        if tracer_provider:
-            tracer_provider.shutdown()
+            await state.rotation_manager.stop()
+            await state.redis_store.close()
+            await state.policy_engine.close()
+            await state._redis_pool.disconnect()
+
+            # Shutdown tracing
+            if tracer_provider:
+                tracer_provider.shutdown()
 
         logger.info("gateway_stopped")
 
@@ -331,6 +345,37 @@ def create_app(settings: Settings) -> FastAPI:
         if revoked:
             return JSONResponse({"status": "revoked"})
         return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    # --- Capabilities endpoint ---
+
+    @app.get("/capabilities")
+    async def get_capabilities(request: Request) -> JSONResponse:
+        """Return the agent's effective capabilities based on its session and policy.
+
+        Requires authentication (phantom token or Bearer).
+        Returns: agent_id, mode, roles, allowed_tools, rate_limit.
+        """
+        session = request.scope.get("state", {}).get("phantom_session")
+        if session is None:
+            return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+        agent_id = session.agent_id
+        access = settings.access.get(agent_id) or settings.access.get("default")
+        if access is None:
+            return JSONResponse(
+                {"error": f"No access policy for agent: {agent_id}"},
+                status_code=403,
+            )
+
+        return JSONResponse({
+            "agent_id": agent_id,
+            "mode": access.mode,
+            "roles": access.roles,
+            "allowed_tools": access.tools,
+            "rate_limit": {
+                "requests_per_minute": access.rate_limit.requests_per_minute,
+            },
+        })
 
     # --- Dynamic tool list updates ---
 

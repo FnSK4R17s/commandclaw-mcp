@@ -1,4 +1,4 @@
-"""Streamable HTTP + stdio bridging + DNS rebinding protection + MCP header propagation."""
+"""Streamable HTTP + stdio bridging + DNS rebinding protection."""
 
 from __future__ import annotations
 
@@ -14,9 +14,6 @@ if TYPE_CHECKING:
     from commandclaw_mcp.config import ServerConfig
 
 logger = structlog.get_logger()
-
-# MCP protocol version for the MCP-Protocol-Version header
-MCP_PROTOCOL_VERSION = "2025-11-25"
 
 
 def validate_upstream_url(url: str, *, allow_private: bool = False) -> str:
@@ -84,12 +81,8 @@ def create_mcp_client(
     - HTTP: "https://api.example.com/mcp" -> Streamable HTTP
 
     DNS rebinding protection is applied to all HTTP URLs.
-    MCP-Protocol-Version header is injected for HTTP transports.
     """
     url = build_client_url(server, allow_private=allow_private)
-
-    # Pass environment variables for stdio servers
-    env = server.env if server.is_stdio and server.env else None
 
     transport_type = "stdio" if server.is_stdio else "http"
     logger.info(
@@ -99,9 +92,6 @@ def create_mcp_client(
         target=url[:50],  # Truncate for logging
     )
 
-    # HTTP clients get MCP-Protocol-Version header
-    headers: dict[str, str] | None = None
-    if not server.is_stdio:
-        headers = {"MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
-
-    return Client(url, env=env, headers=headers)
+    # FastMCP 3.x Client handles protocol negotiation internally.
+    # Only pass the transport URL/command — no extra headers or env kwargs.
+    return Client(url)

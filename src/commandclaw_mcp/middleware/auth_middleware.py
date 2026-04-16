@@ -26,6 +26,9 @@ HEADER_NONCE = "x-nonce"
 # Paths that skip auth (health checks + session creation)
 _PUBLIC_PATHS = frozenset({"/health", "/ready", "/metrics", "/sessions"})
 
+# Path prefixes that skip phantom token auth (have their own auth)
+_AUTH_SKIP_PREFIXES = ("/admin/",)
+
 # MCP protocol headers to preserve (not strip)
 HEADER_MCP_SESSION_ID = "mcp-session-id"
 HEADER_MCP_PROTOCOL_VERSION = "mcp-protocol-version"
@@ -61,6 +64,11 @@ class AuthMiddleware:
 
         # Skip auth for public endpoints
         if request.url.path in _PUBLIC_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Skip phantom token auth for paths with their own auth (e.g. /admin/*)
+        if any(request.url.path.startswith(p) for p in _AUTH_SKIP_PREFIXES):
             await self.app(scope, receive, send)
             return
 

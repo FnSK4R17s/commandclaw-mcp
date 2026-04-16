@@ -16,10 +16,11 @@ services:
       - COMMANDCLAW_CERBOS__PORT=3592
       - COMMANDCLAW_CERBOS__ALLOW_PLAINTEXT=true
       - COMMANDCLAW_GATEWAY__ALLOW_PRIVATE_UPSTREAM=true
+      - COMMANDCLAW_GATEWAY__ADMIN_KEY=${COMMANDCLAW_ADMIN_KEY:-}
       - COMMANDCLAW_OBSERVABILITY__OTLP_ENDPOINT=http://jaeger:4317
     volumes:
       - ${COMMANDCLAW_MCP_CONFIG:-~/.commandclaw/mcp.json}:/home/commandclaw/.commandclaw/mcp.json:ro
-      - ${COMMANDCLAW_AGENTS_CONFIG:-~/.commandclaw/agents.json}:/home/commandclaw/.commandclaw/agents.json:ro
+      - ${COMMANDCLAW_AGENTS_CONFIG:-~/.commandclaw/agents.json}:/home/commandclaw/.commandclaw/agents.json
     depends_on:
       redis:
         condition: service_healthy

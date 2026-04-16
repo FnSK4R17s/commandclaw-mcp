@@ -28,6 +28,9 @@ class GatewayConfig(BaseModel):
     allow_non_loopback: bool = False
     # Allow upstream servers on private IPs (Docker Compose / trusted networks)
     allow_private_upstream: bool = False
+    # Shared secret for /admin/* endpoints. Set via COMMANDCLAW_GATEWAY__ADMIN_KEY.
+    # If empty, admin endpoints return 503.
+    admin_key: str = ""
 
 
 class ServerConfig(BaseModel):

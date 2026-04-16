@@ -62,7 +62,7 @@ class RBACMiddleware(Middleware):
         """Discovery filtering: return only tools the agent is allowed to see."""
         result = await call_next(context)
 
-        agent_id = self._get_agent_id(context)
+        agent_id = await self._get_agent_id(context)
         if agent_id and result:
             tools_as_dicts = [
                 {"name": getattr(t, "name", str(t))} for t in result
@@ -77,8 +77,12 @@ class RBACMiddleware(Middleware):
         self, context: MiddlewareContext, call_next: Any
     ) -> Any:
         """Call-time enforcement: ABAC + rate limiting before forwarding."""
-        agent_id = self._get_agent_id(context)
-        tool_name = getattr(context, "tool_name", None) or str(context)
+        agent_id = await self._get_agent_id(context)
+        tool_name = (
+            getattr(context, "tool_name", None)
+            or getattr(getattr(context, "message", None), "name", None)
+            or str(context)
+        )
         start_time = time.monotonic()
         allowed = True
 
@@ -120,10 +124,11 @@ class RBACMiddleware(Middleware):
             )
             raise
 
-    def _get_agent_id(self, context: MiddlewareContext) -> str | None:
+    async def _get_agent_id(self, context: MiddlewareContext) -> str | None:
         """Extract agent_id from the FastMCP context state."""
         try:
-            return context.fastmcp_context.get_state("agent_id")
+            agent_id = await context.fastmcp_context.get_state("agent_id")
+            return agent_id
         except Exception:
             return None
 
@@ -150,7 +155,11 @@ class CredentialInjectionMiddleware(Middleware):
         self, context: MiddlewareContext, call_next: Any
     ) -> Any:
         """Inject real credential for the target upstream server."""
-        tool_name = getattr(context, "tool_name", "") or ""
+        tool_name = (
+            getattr(context, "tool_name", "")
+            or getattr(getattr(context, "message", None), "name", "")
+            or ""
+        )
         server_name = self._extract_server_name(tool_name)
 
         if server_name:
@@ -164,7 +173,7 @@ class CredentialInjectionMiddleware(Middleware):
         """Decrypt credential at injection time, inject, then zero."""
         session = None
         try:
-            session = context.fastmcp_context.get_state("phantom_session")
+            session = await context.fastmcp_context.get_state("phantom_session")
         except Exception:
             return
 
@@ -206,7 +215,7 @@ class CredentialInjectionMiddleware(Middleware):
 
         if cred_entry.real_credential:
             # Inject the formatted credential into context for the proxy
-            context.fastmcp_context.set_state("upstream_credential", {
+            await context.fastmcp_context.set_state("upstream_credential", {
                 "header_name": cred_entry.header_name,
                 "value": cred_entry.format_for_injection(),
                 "server": server_name,
@@ -398,6 +407,7 @@ class AuthBridgeMiddleware(Middleware):
         self, context: MiddlewareContext, call_next: Any
     ) -> Any:
         """Copy agent_id and phantom_session from HTTP scope to FastMCP state."""
+        agent_id = None
         try:
             from fastmcp.server.http import _current_http_request
 
@@ -406,12 +416,22 @@ class AuthBridgeMiddleware(Middleware):
                 scope_state = request.scope.get("state", {})
                 agent_id = scope_state.get("agent_id")
                 session = scope_state.get("phantom_session")
+
                 if agent_id and context.fastmcp_context:
-                    context.fastmcp_context.set_state("agent_id", agent_id)
+                    await context.fastmcp_context.set_state("agent_id", agent_id)
                 if session and context.fastmcp_context:
-                    context.fastmcp_context.set_state("phantom_session", session)
+                    await context.fastmcp_context.set_state("phantom_session", session)
+
+                logger.debug(
+                    "auth_bridge_ok",
+                    agent_id=agent_id,
+                    has_session=session is not None,
+                    has_context=context.fastmcp_context is not None,
+                )
+            else:
+                logger.warning("auth_bridge_no_request")
         except Exception:
-            logger.debug("auth_bridge_failed", exc_info=True)
+            logger.warning("auth_bridge_failed", exc_info=True)
 
         return await call_next(context)
 

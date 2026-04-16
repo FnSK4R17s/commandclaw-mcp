@@ -189,13 +189,18 @@ def create_app(settings: Settings) -> FastAPI:
         lifespan=lifespan,
     )
 
+    # --- Admin API (principal CRUD, protected by X-Admin-Key) ---
+    from commandclaw_mcp.gateway.admin import create_admin_router
+
+    app.include_router(create_admin_router(settings))
+
     # Add middleware (order matters: outermost first)
     # CORS → Logging → Auth → app routes
     # Streamable HTTP requires proper CORS configuration per MCP spec
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.gateway.cors_allowed_origins,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=[
             "Content-Type",
             "Accept",
@@ -203,6 +208,7 @@ def create_app(settings: Settings) -> FastAPI:
             "X-Timestamp",
             "X-Signature",
             "X-Nonce",
+            "X-Admin-Key",
             "Mcp-Session-Id",
             "MCP-Protocol-Version",
             "Last-Event-ID",
